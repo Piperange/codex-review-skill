@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "createdAt": null,
+  "updatedAt": null,
+  "stats": {
+    "totalReviews": 0,
+    "totalMistakes": 0,
+    "lastReview": null
+  },
+  "mistakes": []
+}
