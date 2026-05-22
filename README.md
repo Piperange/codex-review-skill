@@ -2,7 +2,9 @@
 
 让 OpenAI Codex 作为第二位 AI 审查员，对你 Claude Code 产出的代码进行精细化交叉审查。
 
-> 不同模型有不同的盲区 — Codex 能看到 Claude 看不到的问题。
+> 不同模型有不同的训练偏差 — 交叉审查可以提高问题发现率。
+
+[English Documentation](README_EN.md)
 
 ## 核心特性
 
@@ -17,10 +19,10 @@
 | 依赖 | 版本 | 用途 |
 |------|------|------|
 | Node.js | >= 18.18 | 运行 Codex CLI |
-| OpenAI Codex CLI | 最新 | 执行代码审查 |
+| OpenAI Codex CLI | >= 0.133.0 | 执行代码审查 |
 | Claude Code | 最新 | 宿主环境 |
-| Codex 账户 | ChatGPT/API | 认证 |
-| Codex CC 插件 | 最新 | 官方插件集成 |
+| Codex 账户 | ChatGPT Plus/Pro/API | 认证 |
+| Codex CC 插件 | 可选 | 后台任务管理 |
 
 ## 一键安装
 
@@ -28,7 +30,7 @@
 
 ```bash
 # 从 GitHub 克隆并安装
-git clone https://github.com/<your-username>/codex-review-skill.git
+git clone https://github.com/Piperange/codex-review-skill.git
 cd codex-review-skill
 bash install.sh
 ```
@@ -37,7 +39,7 @@ bash install.sh
 
 ```powershell
 # 从 GitHub 克隆并安装
-git clone https://github.com/<your-username>/codex-review-skill.git
+git clone https://github.com/Piperange/codex-review-skill.git
 cd codex-review-skill
 .\install.ps1
 ```
@@ -148,7 +150,8 @@ cd codex-review-skill
 ```
 codex-review-skill/
 ├── SKILL.md              # 技能定义文件（核心）
-├── README.md             # 本文档
+├── README.md             # 本文档（中文）
+├── README_EN.md          # English documentation
 ├── install.sh            # Linux/macOS/WSL 安装脚本
 ├── install.ps1           # Windows PowerShell 安装脚本
 └── memory-template.json  # 记忆文件模板
@@ -166,7 +169,10 @@ codex-review-skill/
 可以。文件是标准 JSON，你可以手动添加、删除或调整错误模式的频率。
 
 **Q: 可以将记忆分享给团队吗？**
-项目级记忆（`.codex/review-memory.json`）可以提交到 Git 仓库，团队成员共享。全局记忆是个人专属的。
+建议将 `.codex/review-memory.json` 加入 `.gitignore`，因为记忆中的代码片段可能包含敏感信息。若确需共享，请先脱敏。
+
+**Q: 安装脚本会创建 .gitignore 吗？**
+不会自动创建。请手动在项目根目录的 `.gitignore` 中添加 `.codex/review-memory.json`。
 
 ## License
 

@@ -17,8 +17,10 @@ try {
     $nodeVersion = node --version 2>$null
     if ($nodeVersion) {
         $versionStr = $nodeVersion -replace '^v', ''
-        $majorVersion = [int]($versionStr.Split('.')[0])
-        if ($majorVersion -ge 18) {
+        $parts = $versionStr.Split('.')
+        $majorVersion = [int]$parts[0]
+        $minorVersion = [int]$parts[1]
+        if ($majorVersion -gt 18 -or ($majorVersion -eq 18 -and $minorVersion -ge 18)) {
             Write-Info "Node.js $nodeVersion ✓"
         } else {
             Write-ErrorMsg "Node.js >= 18.18 需要，当前版本: $nodeVersion"
@@ -32,12 +34,24 @@ try {
     exit 1
 }
 
-# ---- 安装 Codex CLI ----
+# ---- 安装/更新 Codex CLI ----
 Write-Step "安装 OpenAI Codex CLI"
+
+$npmPath = Get-Command npm -ErrorAction SilentlyContinue
+if (-not $npmPath) {
+    Write-ErrorMsg "npm 未安装，请先安装 Node.js"
+    exit 1
+}
 
 $codexPath = Get-Command codex -ErrorAction SilentlyContinue
 if ($codexPath) {
-    Write-Info "Codex CLI 已安装: $($codexPath.Source) ✓"
+    Write-Info "Codex CLI 已安装: $($codexPath.Source)，尝试更新到最新版本..."
+    npm install -g @openai/codex@latest 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Codex CLI 更新失败，继续使用当前版本"
+    } else {
+        Write-Info "Codex CLI 更新完成 ✓"
+    }
 } else {
     Write-Info "正在安装 @openai/codex..."
     npm install -g @openai/codex
@@ -46,6 +60,7 @@ if ($codexPath) {
         Write-Info "Codex CLI 安装成功 ✓"
     } else {
         Write-ErrorMsg "Codex CLI 安装失败，请手动执行: npm install -g @openai/codex"
+        Write-Info "或尝试 npx @openai/codex 进行免安装运行"
         exit 1
     }
 }
@@ -53,28 +68,19 @@ if ($codexPath) {
 # ---- 检查 Codex 登录状态 ----
 Write-Step "检查 Codex 登录状态"
 
-try {
-    $codexUser = codex whoami 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Info "Codex 已登录: $codexUser ✓"
-    } else {
-        throw "未登录"
-    }
-} catch {
-    Write-Warn "Codex 尚未登录，请执行登录流程..."
+$doctorOutput = codex doctor 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0 -or $doctorOutput -match "error|Error|not logged|auth|login") {
+    Write-Warn "Codex 认证可能有问题，请执行登录流程..."
     codex login
-    try {
-        codex whoami 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Info "Codex 登录成功 ✓"
-        } else {
-            Write-ErrorMsg "Codex 登录失败，请手动执行: codex login"
-            exit 1
-        }
-    } catch {
+    $doctorOutput = codex doctor 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0 -and $doctorOutput -notmatch "error|Error|not logged") {
+        Write-Info "Codex 登录完成 ✓"
+    } else {
         Write-ErrorMsg "Codex 登录失败，请手动执行: codex login"
         exit 1
     }
+} else {
+    Write-Info "Codex 认证状态正常 ✓"
 }
 
 # ---- 安装 Skill 文件 ----
@@ -100,21 +106,28 @@ New-Item -ItemType Directory -Force -Path $globalMemoryDir | Out-Null
 
 $globalMemoryFile = Join-Path $globalMemoryDir "memory.json"
 if (-not (Test-Path $globalMemoryFile)) {
+    $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $tmpFile = Join-Path $globalMemoryDir ".memory.tmp.$PID"
     $templateSource = Join-Path $scriptDir "memory-template.json"
     if (Test-Path $templateSource) {
-        Copy-Item -Path $templateSource -Destination $globalMemoryFile
+        $content = Get-Content $templateSource -Raw -Encoding UTF8
+        $content = $content -replace '"createdAt": null', "`"createdAt`": `"$now`""
+        $content = $content -replace '"updatedAt": null', "`"updatedAt`": `"$now`""
+        Set-Content -Path $tmpFile -Value $content -Encoding UTF8
+        Move-Item -Path $tmpFile -Destination $globalMemoryFile -Force
         Write-Info "全局记忆文件已创建: $globalMemoryFile ✓"
     } else {
-        $defaultMemory = @'
+        $defaultMemory = @"
 {
   "version": "1.0",
-  "createdAt": null,
-  "updatedAt": null,
+  "createdAt": "$now",
+  "updatedAt": "$now",
   "stats": { "totalReviews": 0, "totalMistakes": 0, "lastReview": null },
   "mistakes": []
 }
-'@
-        Set-Content -Path $globalMemoryFile -Value $defaultMemory -Encoding UTF8
+"@
+        Set-Content -Path $tmpFile -Value $defaultMemory -Encoding UTF8
+        Move-Item -Path $tmpFile -Destination $globalMemoryFile -Force
         Write-Info "全局记忆文件已创建（使用默认模板）✓"
     }
 } else {
